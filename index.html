@@ -78,7 +78,7 @@
   #run .goal-big{font-size:clamp(26px,6.5vmin,40px);font-weight:800;letter-spacing:.5px;}
   #run .goal-in{font-size:clamp(18px,4.5vmin,28px);color:var(--cyan);font-weight:700;font-variant-numeric:tabular-nums;}
   #run .goal-sub{color:var(--dim);font-size:15px;min-height:20px;}
-  #run .act-name{font-size:clamp(30px,8vmin,54px);font-weight:800;margin:14px 0 4px;line-height:1.1;min-height:1.1em;}
+  #run .act-name{font-size:clamp(30px,8vmin,54px);font-weight:800;margin:14px 0 4px;line-height:1.1;min-height:1.1em;color:#ff8fd8;}
   #run .remain{font-size:clamp(28px,8.5vmin,60px);font-weight:900;font-variant-numeric:tabular-nums;line-height:1;
     color:var(--text);margin:4px 0 2px;white-space:nowrap;}
   #run .remain.warn{color:var(--amber);}
@@ -89,11 +89,12 @@
   .bar .tick{position:absolute;top:0;bottom:0;width:3px;background:rgba(255,255,255,.35);}
   .bar-times{display:flex;justify-content:space-between;font-size:18.75px;color:var(--dim);
     font-variant-numeric:tabular-nums;padding:0 2px 4px;}
-  .ctl{display:flex;gap:10px;margin:14px 0 6px;}
-  .ctl button{border:none;border-radius:16px;padding:16px 8px;font-size:21px;font-weight:800;cursor:pointer;line-height:1.2;}
-  .ctl .done{flex:1.2;background:var(--green);color:#04231a;}
-  .ctl .pause{flex:1;background:#2c3646;color:var(--text);}
+  .ctl{display:flex;gap:6px;margin:14px 0 6px;}
+  .ctl button{border:none;border-radius:14px;padding:16px 2px;font-size:17px;font-weight:800;cursor:pointer;line-height:1.15;min-width:0;}
+  .ctl .done{flex:1.35;background:var(--green);color:#04231a;}
+  .ctl .pause{flex:1.1;background:#2c3646;color:var(--text);}
   .ctl .pause.resuming{background:var(--amber);color:#332300;}
+  .ctl .warn5{flex:.9;background:#232b38;color:var(--dim);font-size:14px;font-weight:700;}
   .late5{background:#232b38;color:var(--dim);font-size:15px;font-weight:600;}
   .banner{border-radius:12px;padding:10px 14px;font-size:16px;font-weight:600;margin:10px 0;display:none;}
   .banner.behind{display:block;background:rgba(255,183,3,.15);color:var(--amber);border:1px solid rgba(255,183,3,.4);}
@@ -842,11 +843,9 @@ function buildRunDOM(){
     <div class="ctl">
       <button class="done" id="doneBtn">✓ DONE</button>
       <button class="pause" id="pauseBtn">⏸ PAUSE</button>
-      <button class="late5" id="bumpBtn" style="flex:.8">＋5 min<br>on goal</button>
-    </div>
-    <div class="ctl" style="margin-top:0">
-      <button class="late5" id="backBtn" style="flex:1">↶ Redo activity</button>
-      <button class="late5" id="quitBtn" style="flex:1">■ End routine</button>
+      <button class="warn5" id="bumpBtn">＋5</button>
+      <button class="warn5" id="backBtn">↶ REDO</button>
+      <button class="warn5" id="quitBtn">■ END</button>
     </div>
     <div id="tlwrap"><table class="tl"><thead>
       <tr><th>Activity</th><th class="times">Start</th><th class="times">End</th><th>State</th></tr>
