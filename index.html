@@ -195,15 +195,12 @@ function fmtClock(ms){
                                           : {hour:'numeric',minute:'2-digit'};
   return d.toLocaleTimeString([], o);
 }
+function fmtMins(ms){
+  const m = Math.max(0, ms) / 60000;
+  return (Math.round(m*10)/10).toFixed(1);
+}
 function fmtDur(ms){
-  ms = Math.max(0, ms);
-  const s = Math.round(ms/1000);
-  if(s >= 5400){
-    const h = Math.floor(s/3600), m = Math.round((s%3600)/60);
-    return h + 'h ' + String(m).padStart(2,'0') + 'm';
-  }
-  const m = Math.floor(s/60);
-  return m + ':' + String(s%60).padStart(2,'0');
+  return fmtMins(ms) + ' min';
 }
 function fmtSpeech(ms){
   const s = Math.max(0, Math.round(ms/1000));
