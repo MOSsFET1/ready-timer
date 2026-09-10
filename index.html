@@ -150,25 +150,55 @@ const $ = s => document.querySelector(s);
 /* ---------- presets (long-press to save, tap to load) ---------- */
 const PRESET_NAMES = ['Morning 1','Morning 2','Morning 3','Morning 4','Evening 1','Evening 2'];
 function loadPresets(){
-  try{ return JSON.parse(localStorage.getItem('readyTimer.presets')) || {}; }
-  catch(e){ return {}; }
+  try{
+    const ps = JSON.parse(localStorage.getItem('readyTimer.presets')) || {};
+    // migrate old name-keyed format -> fixed slots p1..p6
+    let migrated = false;
+    const out = {};
+    for(let i=0;i<6;i++){
+      const key = 'p'+(i+1);
+      let slot = ps[key];
+      if(!slot && ps[PRESET_NAMES[i]]){ slot = {name: PRESET_NAMES[i], acts: ps[PRESET_NAMES[i]].acts}; migrated = true; }
+      if(!slot) slot = {name: PRESET_NAMES[i], acts: null};
+      else if(!slot.name) slot.name = PRESET_NAMES[i];
+      out[key] = slot;
+    }
+    if(migrated) savePresets(out);
+    return out;
+  }catch(e){
+    const out = {};
+    for(let i=0;i<6;i++) out['p'+(i+1)] = {name: PRESET_NAMES[i], acts: null};
+    return out;
+  }
 }
 function savePresets(p){ try{ localStorage.setItem('readyTimer.presets', JSON.stringify(p)); }catch(e){} }
-function presetActivities(name){
+function presetBySlot(slot){
   const ps = loadPresets();
-  return (ps[name] && ps[name].acts) ? ps[name].acts.map(a=>({...a})) : null;
+  return (ps[slot] && ps[slot].acts) ? ps[slot].acts.map(a=>({...a})) : null;
 }
 function buildPresetStack(){
   const holder = $('#presetStack'); if(!holder) return;
   bindPresetStack._done = false;
   const ps = loadPresets();
-  holder.innerHTML = PRESET_NAMES.map(n=>{
-    const count = ps[n] ? ps[n].acts.length : 0;
-    return '<div class="preset" data-name="' + esc(n) + '">' +
-      '<span class="p-name">' + esc(n) + '</span>' +
-      (count ? '<span class="p-meta">' + count + ' act · ' + fmtDur(ps[n].acts.reduce((s,a)=>s+(a.dur>0?a.dur*60000:0),0)) + '</span>' : '<span class="p-meta">empty</span>') +
+  holder.innerHTML = Object.keys(ps).map(slot=>{
+    const p = ps[slot];
+    const count = p.acts ? p.acts.length : 0;
+    const nm = (p.name || '').trim() || slot;
+    return '<div class="preset" data-slot="' + slot + '">' +
+      '<span class="p-name">' + esc(nm) + '</span>' +
+      (count ? '<span class="p-meta">' + count + ' act · ' + fmtDur(p.acts.reduce((s,a)=>s+(a.dur>0?a.dur*60000:0),0)) + '</span>' : '<span class="p-meta">empty</span>') +
       '</div>';
   }).join('');
+}
+function syncPresetNameField(slot){
+  const f = $('#presetName'); if(!f) return;
+  const ps = loadPresets();
+  f.value = (ps[slot] && ps[slot].name) || '';
+  f.placeholder = 'Preset name';
+}
+function currentPresetNameInput(){
+  const f = $('#presetName'); if(!f) return '';
+  return f.value.trim();
 }
 function bindPresetStack(){
   const holder = $('#presetStack'); if(!holder) return;
@@ -184,14 +214,17 @@ function bindPresetStack(){
     lpRow = row;
     lpTimer = setTimeout(()=>{
       lpTimer = null;
-      const name = row.dataset.name;
+      const slot = row.dataset.slot;
       const ps = loadPresets();
-      ps[name] = {acts: state.planned.filter(p=>p.name.trim() || p.dur>0).map(p=>({name:p.name.trim()||'Activity', dur:p.dur}))};
+      const typed = currentPresetNameInput();
+      ps[slot] = ps[slot] || {name: '', acts: null};
+      if(typed) ps[slot].name = typed;         // save writes the field value as the name
+      ps[slot].acts = state.planned.filter(p=>p.name.trim() || p.dur>0).map(p=>({name:p.name.trim()||'Activity', dur:p.dur}));
       savePresets(ps);
       row.classList.add('flash');
       setTimeout(()=>row.classList.remove('flash'), 700);
       const msg = $('#planMsg');
-      if(msg){ msg.style.color = 'var(--green)'; msg.textContent = 'Saved to ' + name;
+      if(msg){ msg.style.color = 'var(--green)'; msg.textContent = 'Saved to ' + (ps[slot].name || slot);
         setTimeout(()=>{ msg.textContent=''; msg.style.color=''; }, 2500); }
       buildPresetStack();
     }, 3000);
@@ -202,18 +235,24 @@ function bindPresetStack(){
   holder.addEventListener('click', e=>{
     if(lpTimer) return; // long-press already saved; don't also load
     const row = e.target.closest('.preset'); if(!row) return;
-    const name = row.dataset.name;
-    const acts = presetActivities(name);
+    const slot = row.dataset.slot;
+    const ps = loadPresets();
+    const nm = (ps[slot] && ps[slot].name) || slot;
+    const acts = presetBySlot(slot);
+    const nameField = $('#presetName');
+    if(nameField) nameField.value = nm;  // field tracks the loaded preset
     if(!acts){
       const msg = $('#planMsg');
-      if(msg){ msg.style.color = 'var(--red)'; msg.textContent = name + ' is empty — hold it for 3 s to save the current list.';
+      if(msg){ msg.style.color = 'var(--red)'; msg.textContent = nm + ' is empty — hold it for 3 s to save the current list.';
         setTimeout(()=>{ msg.textContent=''; msg.style.color=''; }, 3000); }
       return;
     }
     state.planned = acts;
+    syncPresetNameField(slot);  // re-apply after render() rebuilds the field
     save(); render();
+    syncPresetNameField(slot);
     const msg = $('#planMsg');
-    if(msg){ msg.style.color = 'var(--cyan)'; msg.textContent = 'Loaded ' + name + ' (' + acts.length + ' activities)';
+    if(msg){ msg.style.color = 'var(--cyan)'; msg.textContent = 'Loaded ' + nm + ' (' + acts.length + ' activities)';
       setTimeout(()=>{ msg.textContent=''; msg.style.color=''; }, 2500); }
   });
 }
@@ -692,6 +731,8 @@ function buildPlanDOM(){
     <label>Activities (order matters)</label>
     <div id="acts"></div>
     <button class="b" id="addAct" style="width:100%;margin-top:4px;">＋ Add activity</button>
+    <input type="text" id="presetName" placeholder="Preset name" maxlength="30" autocomplete="off"
+      style="width:100%;margin-top:8px;background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:12px;padding:11px 14px;font-size:17px;outline:none;">
     <div id="presetStack"></div>
   </div>
 
