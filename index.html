@@ -47,6 +47,15 @@
   .drag{color:var(--dim);font-size:20px;cursor:grab;user-select:none;-webkit-user-select:none;
     touch-action:none;padding:0 6px 0 2px;}
   .act.dragging{opacity:.9;border-color:var(--cyan);box-shadow:0 6px 18px rgba(0,0,0,.5);}
+  #presetStack{margin-top:10px;}
+  .preset{display:flex;justify-content:space-between;align-items:center;gap:8px;
+    background:var(--card2);border:1px solid var(--line);border-radius:12px;
+    padding:12px 14px;margin-bottom:8px;cursor:pointer;user-select:none;-webkit-user-select:none;}
+  .preset .p-name{font-weight:700;font-size:18px;}
+  .preset .p-meta{color:var(--dim);font-size:14px;white-space:nowrap;}
+  .preset.flash{animation:presetFlash .7s;}
+  @keyframes presetFlash{0%{background:var(--green)}100%{background:var(--card2)}}
+  .preset.saving{border-color:var(--cyan);}
   .del{background:none;border:none;color:var(--red);font-size:22px;cursor:pointer;padding:4px 6px;}
   button.b{background:var(--card2);border:1px solid var(--line);color:var(--text);
     border-radius:12px;padding:12px 16px;font-size:17px;cursor:pointer;}
@@ -138,6 +147,80 @@ const LS_KEY = 'readyTimer.v1';
 const APP_VER = 'v1.5';
 const $ = s => document.querySelector(s);
 
+/* ---------- presets (long-press to save, tap to load) ---------- */
+const PRESET_NAMES = ['Morning 1','Morning 2','Morning 3','Morning 4','Evening 1','Evening 2'];
+function loadPresets(){
+  try{ return JSON.parse(localStorage.getItem('readyTimer.presets')) || {}; }
+  catch(e){ return {}; }
+}
+function savePresets(p){ try{ localStorage.setItem('readyTimer.presets', JSON.stringify(p)); }catch(e){} }
+function presetActivities(name){
+  const ps = loadPresets();
+  return (ps[name] && ps[name].acts) ? ps[name].acts.map(a=>({...a})) : null;
+}
+function buildPresetStack(){
+  const holder = $('#presetStack'); if(!holder) return;
+  bindPresetStack._done = false;
+  const ps = loadPresets();
+  holder.innerHTML = PRESET_NAMES.map(n=>{
+    const count = ps[n] ? ps[n].acts.length : 0;
+    return '<div class="preset" data-name="' + esc(n) + '">' +
+      '<span class="p-name">' + esc(n) + '</span>' +
+      (count ? '<span class="p-meta">' + count + ' act · ' + fmtDur(ps[n].acts.reduce((s,a)=>s+(a.dur>0?a.dur*60000:0),0)) + '</span>' : '<span class="p-meta">empty</span>') +
+      '</div>';
+  }).join('');
+}
+function bindPresetStack(){
+  const holder = $('#presetStack'); if(!holder) return;
+  if(bindPresetStack._done) return; // listeners live on the holder, survive re-renders
+  bindPresetStack._done = true;
+  let lpTimer = null, lpFired = false, lpRow = null;
+  const stop = ()=>{
+    if(lpTimer){ clearTimeout(lpTimer); lpTimer = null; }
+    if(lpRow){ lpRow.classList.remove('saving'); lpRow = null; }
+  };
+  holder.addEventListener('pointerdown', e=>{
+    const row = e.target.closest('.preset'); if(!row) return;
+    lpRow = row;
+    lpTimer = setTimeout(()=>{
+      lpTimer = null;
+      const name = row.dataset.name;
+      const ps = loadPresets();
+      ps[name] = {acts: state.planned.filter(p=>p.name.trim() || p.dur>0).map(p=>({name:p.name.trim()||'Activity', dur:p.dur}))};
+      savePresets(ps);
+      row.classList.add('flash');
+      setTimeout(()=>row.classList.remove('flash'), 700);
+      const msg = $('#planMsg');
+      if(msg){ msg.style.color = 'var(--green)'; msg.textContent = 'Saved to ' + name;
+        setTimeout(()=>{ msg.textContent=''; msg.style.color=''; }, 2500); }
+      buildPresetStack();
+    }, 3000);
+  });
+  holder.addEventListener('pointerup', stop);
+  holder.addEventListener('pointercancel', stop);
+  holder.addEventListener('pointerleave', stop);
+  holder.addEventListener('click', e=>{
+    if(lpTimer) return; // long-press already saved; don't also load
+    const row = e.target.closest('.preset'); if(!row) return;
+    const name = row.dataset.name;
+    const acts = presetActivities(name);
+    if(!acts){
+      const msg = $('#planMsg');
+      if(msg){ msg.style.color = 'var(--red)'; msg.textContent = name + ' is empty — hold it for 3 s to save the current list.';
+        setTimeout(()=>{ msg.textContent=''; msg.style.color=''; }, 3000); }
+      return;
+    }
+    state.planned = acts;
+    save(); render();
+    const msg = $('#planMsg');
+    if(msg){ msg.style.color = 'var(--cyan)'; msg.textContent = 'Loaded ' + name + ' (' + acts.length + ' activities)';
+      setTimeout(()=>{ msg.textContent=''; msg.style.color=''; }, 2500); }
+  });
+}
+
+let wakeLock = null;
+let audioCtx = null;
+
 const DEFAULT_ACTS = [
   {id:'a1', name:'Wake up & out of bed',    dur:10},
   {id:'a2', name:'Shower',                  dur:15},
@@ -148,8 +231,6 @@ const DEFAULT_ACTS = [
 ];
 
 let state = load();
-let wakeLock = null;
-let audioCtx = null;
 
 function freshState(){
   return {
@@ -611,6 +692,7 @@ function buildPlanDOM(){
     <label>Activities (order matters)</label>
     <div id="acts"></div>
     <button class="b" id="addAct" style="width:100%;margin-top:4px;">＋ Add activity</button>
+    <div id="presetStack"></div>
   </div>
 
   <button class="b primary big-btn" id="startBtn">▶ Start</button>
@@ -641,6 +723,8 @@ function buildPlanDOM(){
   const actsEl = $('#acts');
   state.planned.forEach((a,i)=>actsEl.appendChild(actRow(a,i)));
   bindPlan();
+  buildPresetStack();
+  bindPresetStack();
   updatePlanPreview();
   updatePwaNote();
 }
