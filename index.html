@@ -42,8 +42,8 @@
     border:1px solid var(--line);border-radius:12px;padding:8px;margin-bottom:8px;}
   .act .nm{flex:1;min-width:0;}
   .act input{font-size:17px;padding:9px 10px;}
-  .duwrap{flex:0 0 84px;display:flex;flex-direction:column;gap:2px;}
-  .duwrap .unit{color:var(--dim);font-size:11px;text-align:center;letter-spacing:1px;text-transform:uppercase;}
+  .duwrap{flex:0 0 84px;}
+  .duwrap .unit{display:none;}
   .drag{color:var(--dim);font-size:20px;cursor:grab;user-select:none;-webkit-user-select:none;
     touch-action:none;padding:0 6px 0 2px;}
   .act.dragging{opacity:.9;border-color:var(--cyan);box-shadow:0 6px 18px rgba(0,0,0,.5);}
@@ -53,8 +53,12 @@
     padding:12px 14px;margin-bottom:8px;cursor:pointer;user-select:none;-webkit-user-select:none;}
   .preset .p-name{font-weight:700;font-size:18px;}
   .preset .p-meta{color:var(--dim);font-size:14px;white-space:nowrap;}
-  .preset.flash{animation:presetFlash .7s;}
-  @keyframes presetFlash{0%{background:var(--green)}100%{background:var(--card2)}}
+  .preset.flash{animation:presetFlash 1.1s ease-out;}
+  @keyframes presetFlash{
+    0%{background:var(--green);transform:scale(1.02);box-shadow:0 0 0 3px rgba(45,212,167,.55);}
+    60%{background:var(--green);transform:scale(1);box-shadow:0 0 0 6px rgba(45,212,167,.25);}
+    100%{background:var(--card2);box-shadow:none;}
+  }
   .preset.saving{border-color:var(--cyan);}
   .del{background:none;border:none;color:var(--red);font-size:22px;cursor:pointer;padding:4px 6px;}
   button.b{background:var(--card2);border:1px solid var(--line);color:var(--text);
@@ -144,7 +148,7 @@
    the timeline is always "what will actually happen from now". */
 
 const LS_KEY = 'readyTimer.v1';
-const APP_VER = 'v1.5';
+const APP_VER = 'v1.6';
 const $ = s => document.querySelector(s);
 
 /* ---------- presets (long-press to save, tap to load) ---------- */
@@ -190,6 +194,16 @@ function buildPresetStack(){
       '</div>';
   }).join('');
 }
+function autoLoadFirstPreset(){
+  if(state.view !== 'plan') return;
+  const ps = loadPresets();
+  const p1 = ps['p1'];
+  if(p1 && p1.acts && p1.acts.length){
+    state.planned = p1.acts.map(a=>({...a}));
+    state.loadedPresetSlot = 'p1';
+    save();
+  }
+}
 function syncPresetNameField(slot){
   const f = $('#presetName'); if(!f) return;
   const ps = loadPresets();
@@ -221,8 +235,10 @@ function bindPresetStack(){
       if(typed) ps[slot].name = typed;         // save writes the field value as the name
       ps[slot].acts = state.planned.filter(p=>p.name.trim() || p.dur>0).map(p=>({name:p.name.trim()||'Activity', dur:p.dur}));
       savePresets(ps);
+      row.classList.remove('flash');
+      void row.offsetWidth; // restart animation
       row.classList.add('flash');
-      setTimeout(()=>row.classList.remove('flash'), 700);
+      setTimeout(()=>row.classList.remove('flash'), 1200);
       const msg = $('#planMsg');
       if(msg){ msg.style.color = 'var(--green)'; msg.textContent = 'Saved to ' + (ps[slot].name || slot);
         setTimeout(()=>{ msg.textContent=''; msg.style.color=''; }, 2500); }
@@ -280,6 +296,7 @@ function freshState(){
     goalEpoch:null, origGoalEpoch:null,
     paused:false, pausedAt:null, pausedFor:0, frozenRem:0, pausedPct:0,
     fired:{}, voice:false, allDoneAt:null, lastDoneTap:0, lastPauseTap:0,
+    loadedPresetSlot:null,
   };
 }
 function load(){
@@ -708,7 +725,13 @@ document.addEventListener('visibilitychange', ()=>{
 
 /* ================= PLAN VIEW ================= */
 function render(){
-  if(state.view==='run') buildRunDOM(); else if(state.view==='done') buildDoneDOM(); else buildPlanDOM();
+  if(state.view==='run') buildRunDOM(); else if(state.view==='done') buildDoneDOM(); else {
+    if(!state._autoLoaded && !(state.loadedPresetSlot)){
+      autoLoadFirstPreset();
+      state._autoLoaded = true;
+    }
+    buildPlanDOM();
+  }
 }
 function buildPlanDOM(){
   const app = $('#app');
@@ -728,11 +751,18 @@ function buildPlanDOM(){
   </div>
 
   <div class="card">
-    <label>Activities (order matters)</label>
+    <label style="display:flex;justify-content:space-between;align-items:baseline;">
+      <span>Activities (order matters)</span>
+      <span style="text-transform:none;letter-spacing:0;font-size:13px;">Minutes</span>
+    </label>
     <div id="acts"></div>
     <button class="b" id="addAct" style="width:100%;margin-top:4px;">＋ Add activity</button>
-    <input type="text" id="presetName" placeholder="Preset name" maxlength="30" autocomplete="off"
-      style="width:100%;margin-top:8px;background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:12px;padding:11px 14px;font-size:17px;outline:none;">
+    <label style="margin-top:10px;display:flex;align-items:center;gap:10px;">
+      <span style="flex:none;">Name:</span>
+      <input type="text" id="presetName" placeholder="Preset name" maxlength="30" autocomplete="off"
+        style="flex:1;background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:12px;padding:11px 14px;font-size:17px;outline:none;">
+    </label>
+    <div style="border-top:1px solid var(--line);margin-top:12px;"></div>
     <div id="presetStack"></div>
   </div>
 
@@ -763,6 +793,24 @@ function buildPlanDOM(){
 
   const actsEl = $('#acts');
   state.planned.forEach((a,i)=>actsEl.appendChild(actRow(a,i)));
+  // preset name field: show the name matching the currently loaded list
+  const nameField = $('#presetName');
+  if(nameField){
+    if(state.loadedPresetSlot){
+      const ps = loadPresets();
+      const slot = ps[state.loadedPresetSlot];
+      nameField.value = (slot && slot.name) || '';
+    } else {
+      // no explicit load — match by identical activity list, else blank
+      const ps = loadPresets();
+      const match = Object.keys(ps).find(s => {
+        const a = ps[s].acts;
+        return a && a.length===state.planned.length &&
+          a.every((x,i)=> x.name===state.planned[i].name && x.dur===state.planned[i].dur);
+      });
+      nameField.value = match ? (ps[match].name||'') : '';
+    }
+  }
   bindPlan();
   buildPresetStack();
   bindPresetStack();
@@ -791,10 +839,7 @@ function actRow(a,i){
   div.innerHTML = `
     <span class="drag" title="Drag to reorder">≡</span>
     <input type="text" class="nm" value="${esc(a.name)}" placeholder="Activity">
-    <div class="duwrap">
-      <input type="number" class="du" min="0" step="0.5" inputmode="decimal" value="${a.dur}" placeholder="min">
-      <div class="unit">min</div>
-    </div>
+    <input type="number" class="du duwrap" min="0" step="0.5" inputmode="decimal" value="${a.dur}" placeholder="min">
     <button class="del" title="Remove">✕</button>`;
   return div;
 }
@@ -828,6 +873,7 @@ function bindPlan(){
       state.planned[i].dur = parseFloat(e.target.value)||0;
       e.target.classList.toggle('err', !(state.planned[i].dur>0));
     }
+    state.loadedPresetSlot = null; // list diverged from any preset
     save(); updatePlanPreview();
   });
   actsEl.addEventListener('click', e=>{
