@@ -539,11 +539,11 @@ function tick(){
         const mins = fmtDurWords(t - seg.end);
         if(n === 0)
           showAlert('danger','Time is up','WRAP UP: ' + seg.name,
-            'Tap ✓ DONE when finished — finish time is slipping',
+            'Tap ✓ DONE when finished',
             'Time is up. Finish up and tap done.');
         else
           showAlert('danger','Still going…','+' + mins + ' OVER',
-            'Tap ✓ DONE when finished', null, 2500);
+            null, null, 2500);
         save();
       }
     }
@@ -740,12 +740,11 @@ function buildPlanDOM(){
   const app = $('#app');
   if(!state.planned.length) state.planned = DEFAULT_ACTS.map(a=>({...a}));
   app.innerHTML = `
-  <h1>⏰ Ready Timer</h1>
-  <p class="sub">Plan it backwards. Get pulled back by sound, voice &amp; flash.
-    <span style="opacity:.55">${APP_VER}</span></p>
+  <h1>⏰ Ready Timer
+    <span style="opacity:.45;font-size:14px;vertical-align:middle;">${APP_VER}</span></h1>
 
   <div class="card">
-    <label>Goal time — when you need to be OUT THE DOOR</label>
+    <label>Goal time</label>
     <div class="row">
       <input type="time" id="goalTime" value="${state.goalHHMM}">
       <span id="goalDay" class="note" style="flex:none;align-self:center;"></span>
@@ -755,7 +754,7 @@ function buildPlanDOM(){
 
   <div class="card">
     <label style="display:flex;justify-content:space-between;align-items:baseline;">
-      <span>Activities (order matters)</span>
+      <span>Activities</span>
       <span style="text-transform:none;letter-spacing:0;font-size:13px;">Minutes</span>
     </label>
     <div id="acts"></div>
@@ -783,15 +782,11 @@ function buildPlanDOM(){
       <select id="voiceSel" style="width:100%;background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:12px;padding:12px;font-size:17px;outline:none;"></select>
       <button class="b" id="voiceTest" style="flex:none;padding:12px 14px;">▶</button>
     </div>
-    <div class="note" style="margin-top:8px;">More (and much better) voices: <b>Settings → Accessibility → Spoken Content → Voices → English</b>, download an <b>Enhanced</b> or <b>Premium</b> one, then reopen the app.</div>
-    <div class="note" style="margin-top:8px;">Voice + sound start working after your first tap on Start.
+    <div class="note" style="margin-top:8px;">
       <a href="#" id="testVoice">Test voice</a></div>
   </div>
   <div class="card note" style="margin-top:16px;">
-    <b>Tips for focus:</b> keep the screen on and visible (the app asks the phone to stay awake).
-    Alerts play at media volume, not ringer volume.
-    Add to Home Screen (Safari → Share → Add to Home Screen) so it opens like an app.
-    <div id="pwaNote" style="margin-top:8px;font-weight:600;"></div>
+    <div id="pwaNote" style="font-weight:600;"></div>
   </div>`;
 
   const actsEl = $('#acts');
@@ -825,13 +820,12 @@ function updatePwaNote(){
   const standalone = matchMedia('(display-mode: standalone)').matches ||
                      matchMedia('(display-mode: fullscreen)').matches ||
                      (navigator.standalone === true);
-  if(standalone){ el.textContent = '✓ Installed — runs offline from the Home Screen.'; return; }
+  if(standalone){ el.textContent = '✓ Installed'; return; }
   const blocker = (typeof swBlocker === 'function') ? swBlocker() : null;
   if(blocker){ el.textContent = '⚠ ' + blocker; }
   else {
     navigator.serviceWorker.getRegistration().then(reg=>{
-      el.textContent = reg ? '✓ Offline ready — now use Safari → Share → Add to Home Screen.'
-                           : 'Waiting for offline cache… reload this page in a moment.';
+      el.textContent = reg ? '✓ Ready to install' : '';
     }).catch(()=>{ el.textContent = ''; });
   }
 }
@@ -967,13 +961,12 @@ function updatePlanPreview(){
     : state.planned.length
     ? '<span style="white-space:nowrap;font-size:clamp(13.5px,3.85vw,18px);font-weight:600;">Total: <b>'
       + fmtMins(total) + ' min</b> &nbsp;→&nbsp; start at <b>' + fmtClock(start) + '</b></span>'
-      + (start < nowMs() ? ' <span class="note" style="color:var(--red)">(already past — Start anchors to now)</span>' : '')
-    : 'Add activities to build the plan.';
+    : 'Add activities.';
 
   let tbl = $('#previewTbl');
   if(!tbl && state.planned.length){
     tbl = document.createElement('div'); tbl.id='previewTbl';
-    tbl.innerHTML = '<label style="margin-top:14px">Schedule preview (calculated back from goal)</label><div class="card"><table class="tl"><thead><tr><th>Activity</th><th class="times">Start</th><th class="times">End</th></tr></thead><tbody></tbody></table></div>';
+    tbl.innerHTML = '<label style="margin-top:14px">Schedule</label><div class="card"><table class="tl"><thead><tr><th>Activity</th><th class="times">Start</th><th class="times">End</th></tr></thead><tbody></tbody></table></div>';
     $('#planSummary').closest('.card').after(tbl);
   }
   if(tbl){
@@ -1051,14 +1044,14 @@ function updateRunDOM(){
   const b = $('#statusBanner');
   if(state.paused){
     b.className = 'banner paused';
-    b.textContent = '⏸ PAUSED — everything slides ' + fmtDur(state.pausedFor + (t-state.pausedAt)) +
-      '. Original goal ' + fmtClock(state.origGoalEpoch) + ' stays the goal — finish something early to catch up.';
+    b.textContent = '⏸ PAUSED — ' + fmtDur(state.pausedFor + (t-state.pausedAt)) + ' added. Goal ' +
+      fmtClock(state.origGoalEpoch) + ' unchanged.';
   }else if(diff > 30000){
     b.className = 'banner behind';
-    b.textContent = '⚠ ' + fmtDur(diff) + ' behind original goal — finish an activity early to catch up.';
+    b.textContent = '⚠ ' + fmtDur(diff) + ' behind goal';
   }else if(diff < -30000){
     b.className = 'banner ahead';
-    b.textContent = '✓ ' + fmtDur(-diff) + ' ahead of original goal.';
+    b.textContent = '✓ ' + fmtDur(-diff) + ' ahead';
   }else b.className = 'banner';
 
   // current activity
@@ -1081,7 +1074,7 @@ function updateRunDOM(){
   if(state.paused){ pb.textContent = '▶ RESUME'; pb.classList.add('resuming'); }
   else{ pb.textContent = '⏸ PAUSE'; pb.classList.remove('resuming'); }
   $('#pauseNote').textContent = state.paused
-    ? 'Paused ' + fmtDur(t - state.pausedAt) + ' ago. Original goal kept: ' + fmtClock(state.origGoalEpoch) + '.' : '';
+    ? 'Paused ' + fmtDur(t - state.pausedAt) + ' ago · goal ' + fmtClock(state.origGoalEpoch) : '';
 
   // timeline — scroll so one completed row stays visible above the current one
   const tlw = $('#tlwrap');
