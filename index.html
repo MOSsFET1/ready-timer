@@ -532,8 +532,8 @@ function tick(){
       }
       state.goalEpoch = state.cur < state.planned.length-1
         ? state.segs[state.planned.length-1].end : t;
-      // nag: alert at 0 then every 30s until marked done
-      const n = Math.floor((t - seg.end)/30000);
+      // nag: alert at 0 then every 60s until marked done
+      const n = Math.floor((t - seg.end)/60000);
       if(!state.fired[firedKey(state.cur,'ot'+n)]){
         state.fired[firedKey(state.cur,'ot'+n)] = true;
         const mins = fmtDurWords(t - seg.end);
